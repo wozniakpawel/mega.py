@@ -711,6 +711,10 @@ class Mega:
             iv = file['iv']
             meta_mac = file['meta_mac']
 
+        # file does not exist anymore, return -1
+        if file_data == -16:
+            return -1
+
         # Seems to happens sometime... When this occurs, files are
         # inaccessible also in the official also in the official web app.
         # Strangely, files can come back later.
@@ -748,7 +752,7 @@ class Mega:
             )
             iv_str = a32_to_str([iv[0], iv[1], iv[0], iv[1]])
 
-            for chunk_start, chunk_size in get_chunks(file_size):
+            for _, chunk_size in get_chunks(file_size):
                 chunk = input_file.read(chunk_size)
                 chunk = aes.decrypt(chunk)
                 temp_output_file.write(chunk)
@@ -758,11 +762,15 @@ class Mega:
                     block = chunk[i:i + 16]
                     encryptor.encrypt(block)
 
-                # fix for files under 16 bytes failing
-                if file_size > 16:
-                    i += 16
-                else:
-                    i = 0
+                try:
+                    # fix for files under 16 bytes failing
+                    if file_size > 16:
+                        i += 16
+                    else:
+                        i = 0
+                except Exception as e:
+                    print(f'mega: {e}')
+                    return 0
 
                 block = chunk[i:i + 16]
                 if len(block) % 16:
@@ -779,9 +787,9 @@ class Mega:
                 file_mac[0] ^ file_mac[1], file_mac[2] ^ file_mac[3]
             ) != meta_mac:
                 raise ValueError('Mismatched mac')
-            output_path = Path(dest_path + file_name)
-            shutil.move(temp_output_file.name, output_path)
-            return output_path
+        output_path = Path(dest_path + file_name)
+        shutil.move(temp_output_file.name, output_path)
+        return output_path
 
     def upload(self, filename, dest=None, dest_filename=None):
         # determine storage node
